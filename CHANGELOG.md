@@ -2,6 +2,38 @@
 
 All notable changes to Repo Baby follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) formatting.
 
+## [2.3.0] — 2026-05-13
+
+### Changed
+- **Single-package migration** — replaced 27 individual `tree-sitter-*` grammar
+  packages with `tree-sitter-language-pack==0.13.0`. 5 pip packages instead of 27.
+  Zero compilation on target — single prebuilt wheel (~20 MB).
+- **`install-deps` no longer destroys venv** — removed `--clear` flag. Only creates
+  venv if it doesn't exist. Pip verify-skips already-installed packages.
+- **`ensureDeps` skip-probe optimization** — if `venv/bin/python3` exists from a
+  previous install, skips the `pi.exec` import probe entirely (cached).
+- **TSX fix** — `.tsx` now maps to `"tsx"` (separate TSX binding) instead of
+  sharing the TypeScript grammar.
+
+### Added
+- **Termux/Android support** — `install-deps` pre-installs `tree-sitter-c-sharp`
+  before the language pack, working around the `parser.h` build failure on Termux.
+  Confirmed on Android 11/aarch64, Python 3.12.
+
+### Fixed
+- **`/repo-baby off` toggle guard** — `explore_codebase` now properly throws when
+  the toggle is off (was previously missing from `execute()`).
+- **Doctor catch** — now reports `err.message` instead of swallowing root cause
+  with a generic "not found or broken" message.
+- **11 dead parser mappings** removed (YAML, JSON, HTML, CSS, TOML, Elixir,
+  Haskell, Markdown) — already excluded from file discovery but left in
+  `TS_LANGUAGE_MODULES`.
+- **YAML/JSON `_walk_tree` handlers** removed — dead code since those formats
+  aren't discovered.
+- **`_tokenize_identifiers` return type** — removed bogus `"re.Iterator[str]"`.
+- **`__init__` from boost list** — removed. Already caught by dunder filter,
+  making the boost unreachable.
+
 ## [2.2.0] — 2026-05-11
 
 ### Added
