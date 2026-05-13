@@ -1,6 +1,6 @@
 {
   "name": "pi-repo-baby",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Repository map generator for Pi — gives the agent structural awareness of any codebase via Tree-sitter",
   "keywords": [
     "pi-package",
@@ -31,6 +31,6 @@
     "image": "https://raw.githubusercontent.com/k2-888/pi-repo-baby/main/screenshot.png"
   },
   "scripts": {
-    "install-deps": "python3 -m venv venv --clear && ./venv/bin/pip install tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript tree-sitter-yaml tree-sitter-json tree-sitter-go tree-sitter-rust tree-sitter-ruby tree-sitter-java tree-sitter-c tree-sitter-cpp tree-sitter-c-sharp tree-sitter-php tree-sitter-kotlin tree-sitter-swift tree-sitter-scala tree-sitter-bash tree-sitter-sql tree-sitter-lua tree-sitter-html tree-sitter-css tree-sitter-toml tree-sitter-elixir tree-sitter-haskell tree-sitter-markdown tree-sitter-hcl"
+    "install-deps": "[ -d venv ] || python3 -m venv venv && ./venv/bin/pip install tree-sitter-c-sharp && ./venv/bin/pip install tree-sitter-language-pack==0.13.0"
   }
 }

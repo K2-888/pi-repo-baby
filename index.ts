@@ -102,13 +102,13 @@ async function ensureDeps(
 			timeout: 120_000,
 		});
 
-		if (installCode === 0) {
-			// Re-check after install (venv may be new, so re-resolve python)
+			if (installCode === 0) {
+			// Verify packages are importable (not just venv existed)
 			const python2 = pythonCommand();
 			const { stdout: out2, code: code2 } = await pi.exec(python2, ["-c", probe], { timeout: 10_000 });
 			if (code2 === 0 && out2.trim() === "OK") {
 				if (ctx) ctx.ui.notify("✅ Repo Baby: dependencies installed — Tree-sitter active", "success");
-				return { ok: true, detail: "Tree-sitter + grammars ready" };
+				return { ok: true, detail: "tree-sitter-language-pack ready" };
 			}
 		}
 
@@ -166,6 +166,10 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 		}),
 
 		async execute(_id, params, _signal, _onUpdate, ctx) {
+			if (!state.enabled) {
+				throw new Error("Repo Baby is disabled. Use /repo-baby on to enable.");
+			}
+
 			const script = pythonScriptPath();
 			if (!existsSync(script)) {
 				throw new Error(`repo-baby.py not found at ${script}`);
@@ -217,7 +221,7 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 
 			if (cmd === "off") {
 				state.enabled = false;
-				ctx.ui.notify("Repo Baby: OFF", "info");
+				ctx.ui.notify("Repo Baby: OFF — use \`/repo-baby on\` to re-enable", "info");
 				return;
 			}
 
@@ -228,9 +232,20 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 
 			if (cmd === "doctor") {
 				ctx.ui.notify("Repo Baby: checking dependencies…", "info");
-				const result = await ensureDeps(pi, ctx);
-				state.depsChecked = true;
-				state.depsOk = result.ok;
+				try {
+					const result = await ensureDeps(pi, ctx);
+					state.depsChecked = true;
+					state.depsOk = result.ok;
+					if (result.ok) {
+						ctx.ui.notify(`✅ Repo Baby: ${result.detail}`, "success");
+					} else {
+						ctx.ui.notify(`⚠ Repo Baby: ${result.detail}`, "warning");
+					}
+				} catch (err: any) {
+					ctx.ui.notify(`⚠ Repo Baby: probe failed — ${err?.message || "unknown error"}`, "warning");
+					state.depsChecked = true;
+					state.depsOk = false;
+				}
 				return;
 			}
 

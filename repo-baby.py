@@ -26,10 +26,11 @@ from typing import Dict, List, Optional, Set, Tuple
 # Tree-sitter availability
 # ---------------------------------------------------------------------------
 
-HAS_TREE_SITTER = False
+_TS_PACK_AVAILABLE = False
 try:
     from tree_sitter import Language, Parser, Node
-    HAS_TREE_SITTER = True
+    from tree_sitter_language_pack import get_language
+    _TS_PACK_AVAILABLE = True
 except ImportError:
     pass
 
@@ -37,51 +38,37 @@ except ImportError:
 # Language configuration
 # ---------------------------------------------------------------------------
 
-# Map of file extension → tree-sitter language module name
-TS_LANGUAGE_MODULES = {
-    # Tier 0 — already supported
-    ".py": "tree_sitter_python",
-    ".js": "tree_sitter_javascript",
-    ".ts": "tree_sitter_typescript",
-    ".tsx": "tree_sitter_typescript",
-    ".yaml": "tree_sitter_yaml",
-    ".yml": "tree_sitter_yaml",
-    ".json": "tree_sitter_json",
-    # Tier 1 — must-have
-    ".go": "tree_sitter_go",
-    ".rs": "tree_sitter_rust",
-    ".rb": "tree_sitter_ruby",
-    ".java": "tree_sitter_java",
-    ".c": "tree_sitter_c",
-    ".h": "tree_sitter_c",
-    ".cpp": "tree_sitter_cpp",
-    ".cc": "tree_sitter_cpp",
-    ".cxx": "tree_sitter_cpp",
-    ".hpp": "tree_sitter_cpp",
-    ".hxx": "tree_sitter_cpp",
-    ".cs": "tree_sitter_c_sharp",
-    ".php": "tree_sitter_php",
-    ".kt": "tree_sitter_kotlin",
-    ".kts": "tree_sitter_kotlin",
-    ".swift": "tree_sitter_swift",
-    ".scala": "tree_sitter_scala",
-    ".sc": "tree_sitter_scala",
-    ".sh": "tree_sitter_bash",
-    ".bash": "tree_sitter_bash",
-    ".sql": "tree_sitter_sql",
-    ".lua": "tree_sitter_lua",
-    # Tier 2 — nice to have
-    ".html": "tree_sitter_html",
-    ".htm": "tree_sitter_html",
-    ".css": "tree_sitter_css",
-    ".toml": "tree_sitter_toml",
-    ".ex": "tree_sitter_elixir",
-    ".exs": "tree_sitter_elixir",
-    ".hs": "tree_sitter_haskell",
-    ".md": "tree_sitter_markdown",
-    ".tf": "tree_sitter_hcl",
-    ".tfvars": "tree_sitter_hcl",
-    ".hcl": "tree_sitter_hcl",
+# Map of file extension → language pack name for get_language()
+_EXT_TO_LANG = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".go": "go",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".java": "java",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hxx": "cpp",
+    ".cs": "csharp",
+    ".php": "php",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".swift": "swift",
+    ".scala": "scala",
+    ".sc": "scala",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".sql": "sql",
+    ".lua": "lua",
+    ".tf": "hcl",
+    ".tfvars": "hcl",
+    ".hcl": "hcl",
 }
 
 # Map of file extension → tree-sitter Language object (lazy-loaded)
@@ -201,26 +188,21 @@ def discover_files(repo_path: str, scope: str = ".") -> List[str]:
 
 def get_parser(ext: str) -> Optional[Parser]:
     """Get or lazily create a Tree-sitter parser for the given extension."""
-    if not HAS_TREE_SITTER:
+    if not _TS_PACK_AVAILABLE:
         return None
 
     if ext in _PARSERS:
         return _PARSERS[ext]
 
     parser: Optional[Parser] = None
-    module_name = TS_LANGUAGE_MODULES.get(ext)
+    lang_name = _EXT_TO_LANG.get(ext)
 
-    if module_name:
+    if lang_name:
         try:
-            mod = __import__(module_name)
-            # TypeScript has two sub-languages
-            if ext in (".ts", ".tsx"):
-                lang = Language(mod.language_typescript())
-            else:
-                lang = Language(mod.language())
+            lang = get_language(lang_name)
             parser = Parser(lang)
-        except (ImportError, Exception) as e:
-            print(f"[repo-baby] Could not load parser for {ext}: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"[repo-baby] Could not load parser for {ext} ({lang_name}): {e}", file=sys.stderr)
             parser = None
 
     _PARSERS[ext] = parser
@@ -337,22 +319,6 @@ def _walk_tree(node: "Node", ext: str) -> List[Tuple[str, str, int]]:
                         symbols.append((kind, name, line))
                         break
 
-        # YAML top-level keys
-        if n.type == "block_mapping_pair" and ext in (".yml", ".yaml"):
-            key_node = n.child_by_field_name("key")
-            if key_node:
-                name = key_node.text.decode("utf-8", errors="replace")
-                line = key_node.start_point[0] + 1
-                symbols.append(("key", name, line))
-
-        # JSON top-level keys (first nesting level only)
-        if n.type == "pair" and ext == ".json":
-            key_node = n.child_by_field_name("key")
-            if key_node:
-                name = key_node.text.decode("utf-8", errors="replace").strip('"')
-                line = key_node.start_point[0] + 1
-                symbols.append(("key", name, line))
-
         # Rust impl_item — no name field, target type is in child type_identifier
         if n.type == "impl_item" and ext == ".rs":
             for child in n.children:
@@ -427,7 +393,7 @@ def _is_dunder_base(name: str) -> bool:
     """Check if the base name (after last dot) is a dunder like __init__."""
     base = name.rsplit(".", 1)[-1]
     return base.startswith("__") and base.endswith("__")
-def _tokenize_identifiers(content: str) -> "re.Iterator[str]":
+def _tokenize_identifiers(content: str):
     """Yield all identifier-like tokens from source code content."""
     # Yield each match — re.finditer is lazy in Python 3.7+
     for match in _IDENTIFIER_RE.finditer(content):
@@ -534,7 +500,7 @@ def compute_importance(all_symbols: Dict[str, List[Symbol]], repo_path: str) -> 
 
             # Boost common entry points
             base_name = sym.name.rsplit(".", 1)[-1]  # Strip class prefix like "App."
-            if base_name in ("main", "__init__", "index", "App", "Server",
+            if base_name in ("main", "index", "App", "Server",
                              "setup", "configure", "create_app", "handler"):
                 score += 5.0
 
