@@ -74,10 +74,10 @@ exactly where everything lives.
 | Legacy systems (no docs) | ✅ | No README, no architecture diagram. The map IS the documentation — ranked symbols with reference counts. |
 | Code review / security audit | ✅ | "Find every file that touches authentication" — the map shows the call graph before you read a single line. |
 | Refactoring (cross-cutting) | ✅ | "What breaks if I rename this class?" The ref count tells you exactly how many files reference it. |
+| After making edits | ✅ | Call `explore_codebase` to verify your changes landed correctly and no symbols were orphaned. |
 | Your own project (you know it) | ❌ | You already know where everything is. The map adds no information. |
 | 3-file scripts / utilities | ❌ | `ls` shows you everything in one command. The map is overhead. |
 | Single-file edits in a known file | ❌ | You're going straight to `read` + `edit`. The map is an extra call with no payoff. |
-| The agent already called it this session | ❌ | Don't re-call. The map is fresh until you make edits. Call it again *after* edits to verify. |
 
 **To disable:** `/repo-baby off` hides the tool from the agent entirely.
 `/repo-baby on` brings it back. Use `off` when you're in familiar territory
@@ -99,9 +99,9 @@ to start disabled and toggle on for big ones:
 git clone https://github.com/k2-888/pi-repo-baby ~/.pi/agent/extensions/repo-baby
 ```
 
-That's it. The extension auto-installs 27 Tree-sitter grammars into its own `venv/`
-on first session. You'll see a toast notification during install (~30 seconds),
-then it's silent forever. No `pip install`, no manual steps.
+That's it. The extension auto-installs tree-sitter-language-pack into its own `venv/`
+on first session. You'll see a toast notification during install, then it's
+silent forever. No `pip install`, no manual steps.
 
 ---
 
@@ -128,30 +128,29 @@ entering a codebase, and again after edits. Three mechanisms guide adoption:
 
 ## Supported Languages
 
-All 19 languages use Tree-sitter. No regex anywhere.
+All 19 languages via Tree-sitter, bundled in `tree-sitter-language-pack`. No regex.
 
-| Language | Extensions | Grammar |
-|----------|-----------|---------|
-| Python | `.py` | `tree-sitter-python` |
-| JavaScript | `.js` | `tree-sitter-javascript` |
-| TypeScript | `.ts`, `.tsx` | `tree-sitter-typescript` |
-| Go | `.go` | `tree-sitter-go` |
-| Rust | `.rs` | `tree-sitter-rust` |
-| Ruby | `.rb` | `tree-sitter-ruby` |
-| Java | `.java` | `tree-sitter-java` |
-| C | `.c`, `.h` | `tree-sitter-c` |
-| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx` | `tree-sitter-cpp` |
-| C# | `.cs` | `tree-sitter-c-sharp` |
-| PHP | `.php` | `tree-sitter-php` |
-| Kotlin | `.kt`, `.kts` | `tree-sitter-kotlin` |
-| Swift | `.swift` | `tree-sitter-swift` |
-| Scala | `.scala`, `.sc` | `tree-sitter-scala` |
-| Bash | `.sh`, `.bash` | `tree-sitter-bash` |
-| SQL | `.sql` | `tree-sitter-sql` |
-| Lua | `.lua` | `tree-sitter-lua` |
-| Elixir | `.ex`, `.exs` | `tree-sitter-elixir` |
-| Haskell | `.hs` | `tree-sitter-haskell` |
-| Terraform / HCL | `.tf`, `.tfvars`, `.hcl` | `tree-sitter-hcl` |
+| Language | Extensions |
+|----------|------------|
+| Python | `.py` |
+| JavaScript | `.js` |
+| TypeScript | `.ts` |
+| TSX | `.tsx` |
+| Go | `.go` |
+| Rust | `.rs` |
+| Ruby | `.rb` |
+| Java | `.java` |
+| C | `.c`, `.h` |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx` |
+| C# | `.cs` |
+| PHP | `.php` |
+| Kotlin | `.kt`, `.kts` |
+| Swift | `.swift` |
+| Scala | `.scala`, `.sc` |
+| Bash | `.sh`, `.bash` |
+| SQL | `.sql` |
+| Lua | `.lua` |
+| Terraform / HCL | `.tf`, `.tfvars`, `.hcl` |
 
 ---
 
@@ -178,7 +177,7 @@ contain its name. A word-boundary tokenizer scans each file once (O(file_size)),
 then set-intersection with symbol names produces reference counts.
 
 Core structural types (classes, interfaces) get a 1.5× boost. Test files get a
-20× demotion. JSON/YAML keys are sunk to -1.0.
+20× demotion. 
 
 ### Output
 
@@ -189,17 +188,6 @@ can see *why* something ranks high without verifying with `rg`.
 ---
 
 ## Comparison
-
-### vs Aider's Repo Map
-
-| | Aider | Repo Baby |
-|---|---|---|
-| Delivery | Injected into every prompt | Agent pulls on demand via tool |
-| Extraction | Tree-sitter + ctags fallback | Tree-sitter only |
-| Setup | Manual dependency install | Auto-installs 27 grammars |
-| Ranking | Map-reduce over symbols | Cross-file reference counting |
-| Staleness | Refreshed by framework per-turn | Agent decides when to refresh |
-| Guidance | Raw data in context | `promptSnippet` + `promptGuidelines` + steer nudge |
 
 ### vs RAG / Embeddings
 
@@ -227,13 +215,13 @@ index.ts (TypeScript) ──pi.exec()──→ repo-baby.py --path <cwd> --token
        └── All paths call the same script   stdout → returned to agent
 ```
 
-**`index.ts`** (~320 lines)
+**`index.ts`** (~335 lines)
 - `explore_codebase` tool with `promptSnippet` and `promptGuidelines`
 - `/repo-baby` slash command with tab-completion
-- `ensureDeps()` — one-time auto-install of 27 Tree-sitter grammars
+- `ensureDeps()` — one-time auto-install of tree-sitter-language-pack
 - Exploration tracking — steer nudge after 2+ bash exploration commands
 
-**`repo-baby.py`** (~650 lines)
+**`repo-baby.py`** (~620 lines)
 - File discovery: `git ls-files` → `os.walk` fallback
 - Symbol extraction: Tree-sitter AST walk with class/module context
 - Ranking: single-pass word tokenizer + set-intersection reference counting
@@ -250,7 +238,7 @@ index.ts (TypeScript) ──pi.exec()──→ repo-baby.py --path <cwd> --token
 | **Auto-install deps** | User never sees a dep command. Extension handles its own requirements. |
 | **In-degree ranking** | Simpler than PageRank, equally effective, no `networkx` dependency. |
 | **Reference counts in output** | `← 104 files` tells the agent *why* something ranks high. Builds trust. |
-| **No caching** | Regenerates from scratch. Always fresh. Accept the ~10s cost on large repos. |
+| **No caching (yet)** | Regenerates from scratch every call (~10s for 200+ files). Freshness guaranteed; speed improvements planned. |
 | **Code-only discovery** | YAML, JSON, Markdown, HTML, CSS, TOML excluded — config noise dilutes signal. |
 | **Test file demotion (20×)** | Production code surfaces first. Tests still appear if they have genuine cross-file importance. |
 | **Dunder filter** | `__init__`, `__str__`, `__repr__` are boilerplate. Filtered at extraction time. |
