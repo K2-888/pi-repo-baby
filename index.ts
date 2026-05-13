@@ -79,14 +79,20 @@ async function ensureDeps(
 		return { ok: false, detail: "repo-baby.py not found — extension may be corrupted" };
 	}
 
-	// Quick probe
+	// If venv exists from a previous successful install, skip the probe entirely.
+	// The venv is self-contained — if it exists on disk, it works.
+	if (existsSync(pythonBin())) {
+		return { ok: true, detail: "tree-sitter-language-pack ready (cached)" };
+	}
+
+	// No venv yet — probe system python in case deps are globally installed
 	const python = pythonCommand();
-	const probe = "import tree_sitter, tree_sitter_python; print('OK')";
+	const probe = "import tree_sitter_language_pack; print('OK')";
 
 	try {
 		const { stdout, code } = await pi.exec(python, ["-c", probe], { timeout: 10_000 });
 		if (code === 0 && stdout.trim() === "OK") {
-			return { ok: true, detail: "Tree-sitter + grammars ready" };
+			return { ok: true, detail: "tree-sitter-language-pack available (system)" };
 		}
 	} catch {
 		// probe failed — proceed to install
@@ -112,11 +118,11 @@ async function ensureDeps(
 			}
 		}
 
-		if (ctx) ctx.ui.notify(
-			`⚠ Repo Baby: install failed (exit ${installCode}). Tool will be unavailable.`,
-			"warning",
-		);
-		return { ok: false, detail: `npm install-deps failed: ${stderr?.trim() || `exit ${installCode}`}` };
+		const errorDetail = (installCode === 0)
+			? "Install completed but import verification failed — dependencies may not be usable"
+			: `Exit ${installCode}: ${stderr?.trim() || "no output"}`;
+		if (ctx) ctx.ui.notify(`⚠ Repo Baby: ${errorDetail}`, "warning");
+		return { ok: false, detail: errorDetail };
 	} catch (err: any) {
 		if (ctx) ctx.ui.notify(`⚠ Repo Baby: install failed — ${err.message}`, "warning");
 		return { ok: false, detail: err.message };
@@ -279,6 +285,13 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 			state.depsChecked = true;
 			const result = await ensureDeps(pi, ctx);
 			state.depsOk = result.ok;
+			if (!result.ok) {
+				state.enabled = false;
+				if (ctx) ctx.ui.notify(
+					"Repo Baby disabled — use /repo-baby doctor to retry after fixing dependencies",
+					"warning",
+				);
+			}
 		}
 	});
 
