@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/k2-888/pi-repo-baby">
-    <img alt="Repo Baby" src="https://raw.githubusercontent.com/k2-888/pi-repo-baby/main/assets/logo.svg" width="96" onerror="this.style.display='none'">
+    <img alt="Repo Baby" src="https://raw.githubusercontent.com/k2-888/pi-repo-baby/main/assets/logo.png" width="128">
   </a>
 </p>
 
