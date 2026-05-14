@@ -1,30 +1,8 @@
-/**
- * Repo Baby — Repository Map for Pi
- *
- * Gives Pi structural awareness of any codebase via a `explore_codebase` tool
- * that the agent calls on demand. Uses Tree-sitter (via a companion Python
- * script) for multi-language symbol extraction with in-degree ranking.
- *
- * Usage:
- *   /repo-baby on       — Enable the tool (default)
- *   /repo-baby off      — Disable the tool
- *   /repo-baby status   — Show enabled state + dep health
- *   /repo-baby doctor   — Re-check Python dependencies
- *   /repo-baby refresh  — Reminder to call explore_codebase
- *
- * Requirements:
- *   - Python 3 with tree-sitter + language grammars installed
- */
-
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 
 interface RepoBabyState {
 	enabled: boolean;
@@ -38,38 +16,28 @@ const state: RepoBabyState = {
 	depsOk: false,
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Resolve the directory this extension file lives in */
 function extensionDir(): string {
 	try {
 		return dirname(fileURLToPath(import.meta.url));
 	} catch {
-		// Fallback for environments where import.meta.url is unavailable
 		return process.env.HOME
 			? join(process.env.HOME, ".pi", "agent", "extensions")
 			: ".";
 	}
 }
 
-/** Path to the companion Python script (same directory as this file) */
 function pythonScriptPath(): string {
 	return join(extensionDir(), "repo-baby.py");
 }
 
-/** Path to the venv Python interpreter (bundled inside this extension directory) */
 function pythonBin(): string {
 	return join(extensionDir(), "venv", "bin", "python3");
 }
 
-/** Use venv python if available, else fall back to system python3 */
 function pythonCommand(): string {
 	return existsSync(pythonBin()) ? pythonBin() : "python3";
 }
 
-/** Ensure Python tree-sitter deps are installed. Auto-installs if missing. */
 async function ensureDeps(
 	pi: ExtensionAPI,
 	ctx?: { ui: { notify: (msg: string, type: string) => void } },
@@ -79,13 +47,10 @@ async function ensureDeps(
 		return { ok: false, detail: "repo-baby.py not found — extension may be corrupted" };
 	}
 
-	// If venv exists from a previous successful install, skip the probe entirely.
-	// The venv is self-contained — if it exists on disk, it works.
 	if (existsSync(pythonBin())) {
 		return { ok: true, detail: "tree-sitter-language-pack ready (cached)" };
 	}
 
-	// No venv yet — probe system python in case deps are globally installed
 	const python = pythonCommand();
 	const probe = "import tree_sitter_language_pack; print('OK')";
 
@@ -95,10 +60,8 @@ async function ensureDeps(
 			return { ok: true, detail: "tree-sitter-language-pack available (system)" };
 		}
 	} catch {
-		// probe failed — proceed to install
 	}
 
-	// Deps missing — auto-install
 	if (ctx) ctx.ui.notify("Repo Baby: installing dependencies (this may take a minute)…", "info");
 
 	const extDir = extensionDir();
@@ -109,7 +72,6 @@ async function ensureDeps(
 		});
 
 			if (installCode === 0) {
-			// Verify packages are importable (not just venv existed)
 			const python2 = pythonCommand();
 			const { stdout: out2, code: code2 } = await pi.exec(python2, ["-c", probe], { timeout: 10_000 });
 			if (code2 === 0 && out2.trim() === "OK") {
@@ -129,13 +91,7 @@ async function ensureDeps(
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Extension
-// ---------------------------------------------------------------------------
-
 export default function repoBabyExtension(pi: ExtensionAPI) {
-	// ---- Tool: explore_codebase ------------------------------------------------
-
 	pi.registerTool({
 		name: "explore_codebase",
 		label: "Get Repo Map",
@@ -184,7 +140,6 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 			const cwd = ctx.cwd;
 			const budget = params.token_budget || 800;
 
-			// Build argument list — include --scope if provided
 			const args = [script, "--path", cwd, "--token-budget", String(budget)];
 			if (params.scope) {
 				args.push("--scope", params.scope);
@@ -205,8 +160,6 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 			};
 		},
 	});
-
-	// ---- Command: /repo-baby -----------------------------------------------
 
 	pi.registerCommand("repo-baby", {
 		description: "Toggle repository map on/off",
@@ -273,14 +226,10 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 		},
 	});
 
-	// ---- Event: reset state on new sessions --------------------------------
-
 	pi.on("session_start", async (_event, ctx) => {
-		// Reset exploration tracking for fresh session
 		explorationStreak = 0;
 		nudgeDeliveredThisTurn = false;
 
-		// One-time dependency check + auto-install
 		if (!state.depsChecked) {
 			state.depsChecked = true;
 			const result = await ensureDeps(pi, ctx);
@@ -295,8 +244,6 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 		}
 	});
 
-	// ---- Exploration tracking: nudge when agent chains bash exploration ----
-
 	let explorationStreak = 0;
 	let nudgeDeliveredThisTurn = false;
 
@@ -307,7 +254,6 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 		const input = event.input as { command?: string } | undefined;
 		const cmd = input?.command ?? "";
 
-		// Detect exploration commands: ls, find, fd, tree, rg, grep
 		if (/\b(ls|find|fd|tree|rg|grep)\b/i.test(cmd)) {
 			explorationStreak++;
 		}
@@ -316,13 +262,11 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 	pi.on("tool_execution_end", async (event) => {
 		if (!state.enabled || nudgeDeliveredThisTurn) return;
 
-		// Reset streak when agent uses explore_codebase — it remembered
 		if (event.toolName === "explore_codebase") {
 			explorationStreak = 0;
 			return;
 		}
 
-		// After 2 exploration commands without using explore_codebase, nudge
 		if (explorationStreak >= 2) {
 			pi.sendMessage(
 				{
@@ -341,7 +285,6 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 		}
 	});
 
-	// Reset tracking each turn so the agent gets a fresh chance
 	pi.on("turn_start", async () => {
 		explorationStreak = 0;
 		nudgeDeliveredThisTurn = false;
