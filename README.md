@@ -13,7 +13,7 @@
 
 # Repo Baby
 
-> Structural awareness for your AI coding agent. Zero setup, zero injection, zero config.
+> A navigation aid for you and your AI coding agent. Shows what's in the codebase and where to start reading. Zero setup, zero injection, zero config.
 
 ## ✨ Highlights
 
@@ -46,11 +46,17 @@ Symbols are ranked by cross-file reference count — the more files that referen
 
 Instead of chaining five exploration commands, the agent makes one call and knows exactly where to start.
 
+Think of it as a compass: it doesn't show you the terrain, it tells you which way to walk.
+
 ### When It Shines
 
 `read_codebase` is built for moments where the agent doesn't know the territory. If the codebase fits in your head, you don't need it — and that's fine. But when you're operating beyond what you can hold mentally, the map pays for itself in saved exploration turns.
 
-**Best for:** open-source contributions to unfamiliar repos, monorepos crossing dozens of packages, legacy systems with no architecture docs, cross-cutting refactors where you need to know what breaks, security audits tracing a feature across the call graph.
+This tool is most useful on large codebases — monorepos, legacy systems, anything beyond what `ls` can summarize. On small projects, it won't add much.
+
+**Best for:** first-time orientation in an unfamiliar codebase, monorepos where you don't know which packages matter, legacy systems with no architecture docs, figuring out what to read first without chaining `ls` → `find` → `rg`, quick architectural overview for humans — one call shows how the codebase is wired together.
+
+On a real Terraform monorepo with 1,800 `.tf` files across 270 modules, `read_codebase` surfaced `aws_ssm_parameter ← 726 files` and `provider aws` at the top — in one call, you know what the entire infrastructure orbits around without reading a single file.
 
 **Skip it when:** you're in your own project and know the layout, you're making a single-file edit to a file you already read, or the repo is small enough that `ls` tells you everything. Toggle it off with `/repo-baby off` — it costs nothing to disable and nothing to bring back.
 
@@ -117,6 +123,18 @@ All 19 languages via Tree-sitter, bundled in `tree-sitter-language-pack`.
 **Ranking** — in-degree reference counting: for each symbol, counts how many other files contain its name. A single-pass tokenizer scans each file once, then set-intersection with symbol names produces reference counts. Core structural types get a boost; test files are demoted.
 
 **Output** — symbols grouped by file, sorted by reference count, trimmed to token budget. Reference counts shown inline.
+
+---
+
+## What It Won't Do
+
+Repo Baby is a navigation tool, not a static analyzer. Be clear on the boundaries:
+
+- **It won't find bugs.** No semantic understanding — can't detect logic errors, race conditions, or type mismatches.
+- **It won't identify dead code.** Zero references could mean dead code, or it could be an entry point (`main()`, CLI command, public API). You still need human judgment.
+- **It won't show code.** The output is symbol names and reference counts. No function signatures, no types, no decorators. It tells you where to look, not what's there.
+- **It won't detect god objects.** High reference count doesn't equal bad design — a well-scoped utility class can have 100+ references legitimately.
+- **It won't replace reading files.** It's a starting point. You still need to `read` the files it points to.
 
 ---
 
