@@ -93,7 +93,7 @@ async function ensureDeps(
 
 export default function repoBabyExtension(pi: ExtensionAPI) {
 	pi.registerTool({
-		name: "explore_codebase",
+		name: "read_codebase",
 		label: "Get Repo Map",
 		description:
 			"Return a high-level structural map of the codebase: functions, classes, " +
@@ -108,13 +108,13 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 			"Ranked structural overview of the codebase — functions, classes, methods " +
 			"sorted by cross-file reference importance. Call FIRST when exploring any repo.",
 		promptGuidelines: [
-			"Use explore_codebase as your FIRST action when starting work in any codebase — " +
+			"Use read_codebase as your FIRST action when starting work in any codebase — " +
 			"it shows the most important symbols (ranked by how many files reference them) " +
 			"so you know exactly which files to read and which symbols are entry points.",
-			"Use explore_codebase after making edits to verify the codebase structure is intact " +
+			"Use read_codebase after making edits to verify the codebase structure is intact " +
 			"— it returns a fresh snapshot showing your changes landed correctly and no " +
 			"symbols were orphaned.",
-			"Use explore_codebase instead of chaining ls + find + rg + read for initial " +
+			"Use read_codebase instead of chaining ls + find + rg + read for initial " +
 			"codebase exploration — one call replaces multiple exploration commands and " +
 			"shows cross-file relationships that grep cannot reveal.",
 		],
@@ -174,7 +174,7 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 
 			if (cmd === "on") {
 				state.enabled = true;
-				ctx.ui.notify("Repo Baby: ON — use \`explore_codebase\` tool to see repository structure", "success");
+				ctx.ui.notify("Repo Baby: ON — use \`read_codebase\` tool to see repository structure", "success");
 				return;
 			}
 
@@ -185,7 +185,7 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 			}
 
 			if (cmd === "refresh") {
-				ctx.ui.notify("Repo Baby: use the \`explore_codebase\` tool for a fresh snapshot", "info");
+				ctx.ui.notify("Repo Baby: use the \`read_codebase\` tool for a fresh snapshot", "info");
 				return;
 			}
 
@@ -262,7 +262,7 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 	pi.on("tool_execution_end", async (event) => {
 		if (!state.enabled || nudgeDeliveredThisTurn) return;
 
-		if (event.toolName === "explore_codebase") {
+		if (event.toolName === "read_codebase") {
 			explorationStreak = 0;
 			return;
 		}
@@ -273,7 +273,7 @@ export default function repoBabyExtension(pi: ExtensionAPI) {
 					customType: "repo-baby-nudge",
 					content:
 						"You've used multiple ls/find/fd/rg exploration commands. " +
-						"Use explore_codebase instead — it returns a ranked structural " +
+						"Use read_codebase instead — it returns a ranked structural " +
 						"map of the entire codebase (functions, classes, methods sorted " +
 						"by cross-file reference importance) in a single call.",
 					display: true,
